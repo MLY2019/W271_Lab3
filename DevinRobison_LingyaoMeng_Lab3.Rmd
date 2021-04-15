@@ -1,0 +1,380 @@
+---
+title: 'Statistical Methods for Discrete Response, Time Series, and Panel Data (W271): Group Lab 3'
+author: 'Devin Robison and Lingyao Meng'
+geometry: margin=1in
+output:
+  pdf_document:
+    latex_engine: xelatex
+  number_sections: yes
+  html_document: default
+  toc: yes
+fontsize: 11pt
+---
+
+# U.S. traffic fatalities: 1980-2004
+
+1. (30%) Load the data. Provide a description of the basic structure of the dataset, as we have done throughout the semester. Conduct a very thorough EDA, which should include both graphical and tabular techniques, on the dataset, including both the dependent variable *totfatrte* and the potential explanatory variables. You need to write a detailed narrative of your observations of your EDA. 
+```{r message=FALSE, warning=TRUE, include=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+
+# Load libraries
+library(car)
+library(dplyr)
+library(Hmisc)
+library(ggplot2)
+library(lattice)
+library(plm)
+```
+```{r}
+# load the RData file
+load("driving.RData", f <- new.env())
+
+# variable descriptions
+# f$desc     
+
+# get the data
+driving <- f$data     
+str(driving)
+```
+### Univariate analysis of total fatality rate
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$totfatrte)
+ggplot(driving, aes(x = totfatrte)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1, fill="#0072B2", colour="black") +
+  ggtitle("Total fatality rate")
+ggplot(driving, aes(x = year, y = totfatrte, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("Total fatality rate by year")
+ggplot(driving, aes(factor(state), totfatrte)) +
+  geom_boxplot(aes(fill = factor(state))) +
+  ggtitle("Total fatality rate by state")
+```
+
+The distribution of the response variable *totfatrte* is slightly right skewed. Since the skewness is not very serious, we decided not to perform transformation on it. From the time plot grouped by state, we could see that for most states, the fatality rate trended to decrease from 1980 to 2004.  From the boxplot, we observed variated data variances across states.
+
+### Univariate analysis of blood alcohol concentration limits
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$bac08)
+ggplot(driving, aes(x = year, y = bac08, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("bac08 by year")
+```
+
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$bac10)
+ggplot(driving, aes(x = year, y = bac10, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("bac10 by year")
+```
+
+Both *bac08* and *bac10* are explanatory variables related to blood alcohol concentration (BAC) limit. From the time plots, we see the enforcement of BAC limit of 0.08% increased by time, for quite a few states. In fact, over 75% of the observations valued 0 in *bac08*. On the other hand, comparable increasing and decreasing trends were observed on the enforcement of BAC limit of 0.10%, indicating that the enforcement of two limits may not be mutually exclusive. Both variables need to be kept in the model.
+
+### Univariate analysis of seat belt laws
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$sbprim)
+ggplot(driving, aes(x = year, y = sbprim, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("sbprim by year")
+```
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$sbsecon)
+ggplot(driving, aes(x = year, y = sbsecon, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("sbsecon by year")
+```
+
+The time plot showed that the enforcement of the primary seat belt law trended to increase from 1980 to 2004 for a few states. Similar to *bac08*, over 75% of the observations valued 0 in *sbprim*. In quite a few states, we observed increase trend for the enforcement of the second seat belt law. There were some states where the trend was decrease though.
+
+### Univariate analysis of the "Per Se" law
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$perse)
+ggplot(driving, aes(x = year, y = perse, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("perse by year")
+```
+
+In most states, the enforcement of the "Per se" law trended to increase from 1980 to 2004. There are also some states where the law remained in effect or never in effect in the period. 
+
+### Univariate analysis of speed limit of 70 and up
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$sl70plus)
+ggplot(driving, aes(x = year, y = sl70plus, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("sl70plus by year")
+```
+
+In a few states, the enforcement of speed limit of 70 and up trended to increase from 1980 to 2004. Some states had never enacted such high speed limit in the period. In fact, over 75% observations valued 0 in *sl70plus*.
+
+### Univariate analysis of the graduated drivers license law
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$gdl)
+ggplot(driving, aes(x = year, y = gdl, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("gdl by year")
+```
+
+In a few states, the enforcement of the graduated drivers license law trended to increase from 1980 to 2004. Some states had never enacted the law in the period. In fact, over 75% observations valued 0 in *gdl*.
+
+### Univariate analysis of unemployment rate
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$unem)
+ggplot(driving, aes(x = year, y = unem, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("unem by year")
+```
+
+In most if not all states, the unemployment rate trended to decrease from 1980 to 2004.
+
+### Univariate analysis of the percent population aged 14 to 24
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$perc14_24)
+ggplot(driving, aes(x = year, y = perc14_24, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("perc14_24 by year")
+```
+
+In most states, the percent population aged 14 to 24 trended to decrease from 1980 to 2004.
+
+### Univariate analysis of vehicle miles driven per capita
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+summary(driving$vehicmilespc)
+ggplot(driving, aes(x = year, y = vehicmilespc, color = factor(state))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("vehicmilespc by year")
+```
+
+In most states, the vehicle miles traveled per capita trended to increase from 1980 to 2004.
+
+### Bivariate analysis of total fatality rate and blood alcohol concentration limits
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = bac08, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Blood alcohol limit of 0.08')
+ggplot(driving, aes(x = bac08, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Blood alcohol limit of 0.08')
+ggplot(driving, aes(x = bac10, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Blood alcohol limit of 0.10')
+ggplot(driving, aes(x = bac10, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Blood alcohol limit of 0.10')
+```
+
+Within states, some negative correlation was observed between *bac08* and *totfatrte*. Within a year, the correlation is not very obvious. This suggests that for a given state, the enforcement of BAC limit of 0.08% would probably decrease the fatality rate. However, there are other effects than *bac08* in explanation of different fatality rates in a year among states.
+
+On the other hand, the correlation between *bac10* and *totfatrte* within states is not very clear. Within a year, some negative correlation was observed.
+
+### Bivariate analysis of total fatality rate and seatbelt laws
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = sbprim, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate by Primary seatbelt law')
+ggplot(driving, aes(x = sbprim, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate by Primary seatbelt law')
+ggplot(driving, aes(x = sbsecon, totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  ggtitle('Total fatality rate by Secondary seatbelt law')
+ggplot(driving, aes(x = sbsecon, totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  ggtitle('Total fatality rate by Secondary seatbelt law')
+```
+
+Within states, negative correlations were observed between both the primary and the secondary seatbelt law and the fatality rate. Within a year, the correlation between *sbprim* and *totfatrte* is still negative but that between *sbsecon* and *totfatrte* is mixed. 
+
+### Bivariate analysis of total fatality rate and the "per se" law
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = perse, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Per Se law')
+ggplot(driving, aes(x = perse, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Per Se law')
+```
+
+The enforcement of the "Per se" laws was negatively correlated with the fatality rate for most states, with few exceptions. However, within a year, the correlation seems to be wealy positive. 
+
+### Bivariate analysis of total fatality rate and speed limits of 70 and up
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = sl70plus, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. High speed limit')
+ggplot(driving, aes(x = sl70plus, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. High speed limit')
+```
+
+Interestingly, we observed negative correlation within states between high speed limit (70 and up) and the fatality rate and positive correlation within a year. This suggests complicated effects of *sl70plus* on *totfatrte*. 
+
+### Bivariate analysis of total fatality rate and graduated driver license law
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = gdl, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Graduated drivers license law')
+ggplot(driving, aes(x = gdl, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Graduated drivers license law')
+```
+
+Negative correlations were observed between the enforcement of graduated drivers license law and the fatality rate, both across states and across years.
+
+### Bivariate analysis of total fatality rate and unemployment rate
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = unem, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Unemployment rate')
+ggplot(driving, aes(x = unem, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Unemployment rate')
+```
+
+Virtually, for most states, the unemployment rate is positively correlated with the fatality rate while negative correlations were also observed for a few states. The regression lines have variated slopes among states. Similar correlation between *unem* and *totfatrte* was observed within a year.
+
+### Bivariate analysis of total fatality rate and Percent population aged 14 to 24
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = perc14_24, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Percent population aged 14 to 24')
+ggplot(driving, aes(x = perc14_24, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Percent population aged 14 to 24e')
+```
+
+Virtually, for most states, the percent population aged 14 to 24 is positively correlated with the fatality rate while negative correlations were also observed for a few states. The regression lines have variated slopes among states. Similar correlation between *unem* and *totfatrte* was observed within a year.
+
+### Bivariate analysis of total fatality rate and vehicle miles driven per capita
+```{r fig.width = 10, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = vehicmilespc, y = totfatrte, color = factor(state))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Vehicle miles traveled per capita')
+ggplot(driving, aes(x = vehicmilespc, y = totfatrte, color = factor(year))) + 
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle('Total fatality rate Vs. Vehicle miles traveled per capita')
+```
+
+Clearly, within a year, *vehicmilespc* and *totfatrte* is positively correlated. On the other hand, the within states correlation seems to be negative for most states. Meanwhile, we observed the cross states regression slopes get decreased by year. It suggests that the positive effect of *vehicmilespc* on *totfatrte* shrinks over time. This may explain the negative within state correlation as there are other factors dereasing the fatality rate.
+
+2. (15%) How is the our dependent variable of interest *totfatrte* defined? What is the average of this variable in each of the years in the time period covered in this dataset? Estimate a linear regression model of *totfatrte* on a set of dummy variables for the years 1981 through 2004. What does this model explain? Describe what you find in this model. Did driving become safer over this period? Please provide a detailed explanation.
+
+3. (15%) Expand your model in *Exercise 2* by adding variables *bac08, bac10, perse, sbprim, sbsecon, sl70plus, gdl, perc14_24, unem, vehicmilespc*, and perhaps *transformations of some or all of these variables*. Please explain carefully your rationale, which should be based on your EDA, behind any transformation you made. If no transformation is made, explain why transformation is not needed. How are the variables *bac8* and *bac10* defined? Interpret the coefficients on *bac8* and *bac10*. Do *per se laws* have a negative effect on the fatality rate? What about having a primary seat belt law? (Note that if a law was enacted sometime within a year the fraction of the year is recorded in place of the zero-one indicator.)
+
+The variables *bac08, bac10, perse, subprim, sbsecon, sl70plus, gdl* have value ranges from 0 to 1. In fact these are binary indicators of whether certain law was in effect in a state, in a year. The decimal values, if there is any, stand for the fraction of the year when the law was enacted within a year. The variables *perc14_24*, *unem* and *vehicmilespc* are continuous and the distributions are not severly skewed. Also, we didn't observed any obvious non-linear relationship between any explanatory variable and the response variable. Therefore, no transformation is needed for either variable.
+
+```{r}
+lm2 <- lm(data = driving, totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + 
+            d91 + d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + 
+            bac08 + bac10 + perse + sbprim + sbsecon + sl70plus + gdl + perc14_24 + unem + vehicmilespc)
+
+summary(lm2)
+```
+
+The variable *bac08* is the binary indicator of whether the blood alcohol concentration (BAC) of 0.08% was allowed in a state, in a year. The variable *bac10* is the binary indicator of whether the blood alcohol concentration of 0.10% was allowed in a state, in a year. 
+
+The coefficient of *bac08* was estimated as -2.5. It means that holding all other conditions constant, when the BAC limit of 0.08% was enforced, the total fatality rate would drop by 2.5. The coefficient of *bac10* was estimated as -1.4. It means that holding all other conditions constant, when the BAC limit of 0.10% was enforced, the total fatality rate would drop by 1.4. Clearly, the effect of imposing BAC limit of 0.08% was estimated to be larger than that of 0.10%, in decreasing the total fatality rate.
+
+The coefficient of *perse* was estimated as -0.062 and the p-value is smaller than 0.05. There is marginal evidence to claim that the effect of *perse* on the total fatality rate is negative. On the other hand, the t-test for the coefficient of *sbprim* resulted in a quite large p-value, so there is a lack of evidence to claim that *sbprim* has effect on the total fatality rate.
+
+4. (15%) Reestimate the model from *Exercise 3* using a fixed effects (at the state level) model. How do the coefficients on *bac08, bac10, perse, and sbprim* compare with the pooled OLS estimates? Which set of estimates do you think is more reliable? What assumptions are needed in each of these models?  Are these assumptions reasonable in the current context?
+
+```{r}
+driving.panel <- pdata.frame(driving, c('state', 'year'))
+
+fe <- plm(data = driving.panel, 
+          totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + d92 + d93 + 
+            d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + bac08 + bac10 + 
+            perse + sbprim + sbsecon + sl70plus + gdl + perc14_24 + unem + vehicmilespc, 
+          model = 'within')
+
+summary(fe)
+```
+```{r}
+data.frame('Pooled.OLS' = coefficients(lm2)[c('bac08', 'bac10', 'perse', 'sbprim')],
+           'Fixed.effects' = coefficients(fe)[c('bac08', 'bac10', 'perse', 'sbprim')])
+```
+The estimated coefficients of *bac08, bac10, perse, and sbprim* by pooled OLS and fixed effects are listed as above. All coefficients were estimated as negative, by either model. Compared to those estimated by pooled OLS, the coefficients of *bac08* and *bac10* estimated by fixed effects got smaller in the absolute values. On the other hand, the estimated coefficients of *perse* and *sbprim* got larger. Further, *sbprim* was not statistically significant when estimated by pooled OLS, but was statistically significant when estimated by fixed effects, at 5% level.
+
+The validity of the pooled OLS model depends on the satisfaction of the CLM assumptions of:
+1. Linear in parameters;
+2. Random sampling;
+3. No perfect collinearity;
+4. Zero conditional mean;
+5. Homoskedasticity;
+6. Normality.
+
+Under the current context, CLM assumption 4, 5 and 6 can hardly be satisfied when then unobserved effects are correlated with the explanatory variables. For example, drug abuse rate could be an unoberved effect for the total fatality rate and it could be correlated with unemployment rate and the percent population aged 14 to 24. 
+
+The assumptions for the fixed effects model are as follows:
+1. For each i, the model is 
+$$ y_{it} = \beta_1 x_{it1} + ... + \beta_k x_{itk} + a_i + u_{it}, t = 1,...,T,$$ 
+where the $\beta_j$ are the parameters to estimate and $a_i$ is the unobserved effect.
+
+2. Random sampling from the cross section.
+
+3. Each explanatory variable changes over time and no perfect collineartiy.
+
+4. $$E(u_{it} | X_i, a_i) = 0$$
+
+5. $$Var(u_{it} | X_i, a_i) = VAR(u_{it}) = \sigma^2_u, for \ all \ t = 1,...,T$$
+
+6. $$Cov(u_{it}, u_{is} | X_i, a_i) = 0$$
+
+7. Conditional on $X_i$ and $a_i$, the $u_{it}$ are independent and identically distributed as $Normal(0, \sigma^2_u)$.
+
+The fixed effects model allows for arbitrary correlation between $a_i$ and $X_i$ in any time period. Under the current context, we don't see serious violations to these assumptions. Therefore, the coefficients estimated by fixed effects are more reliable.
+
+5. (10%) Would you perfer to use a random effects model instead of the fixed effects model you built in *Exercise 4*? Please explain.
+
+6. (10%) Suppose that *vehicmilespc*, the number of miles driven per capita, increases by $1,000$. Using the FE estimates, what is the estimated effect on *totfatrte*? Please interpret the estimate.
+
+```{r}
+round(coefficients(fe)['vehicmilespc'] * 1000, 0)
+```
+Holding all other conditions constant, with the number of miles driven per catipa increased by 1,000, the total fatalities per 100,000 population would increase by 1.
+
+7. (5%) If there is serial correlation or heteroskedasticity in the idiosyncratic errors of the model, what would be the consequences on the estimators and their standard errors?
+
+
+
+
+
+
+
+
+
+
+
+
+
