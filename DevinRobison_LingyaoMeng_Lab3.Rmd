@@ -27,6 +27,8 @@ library(lattice)
 library(plm)
 library(ggpubr)
 library(gridExtra)
+library(corrplot)
+library(reshape)
 ```
 ```{r}
 # load the RData file
@@ -37,6 +39,40 @@ load("driving.RData", f <- new.env())
 driving <- f$data     
 str(driving)
 ```
+From Wooldridge's rdata description (`https://rdrr.io/cran/wooldridge/man/driving.html`)
+------
+
+sl55: speed limit == 55
+sl65: speed limit == 65
+sl70: speed limit == 70
+sl75: speed limit == 75
+slnone: no speed limit
+seatbelt: =0 if none, =1 if primary, =2 if secondary
+minage: minimum drinking age
+zerotol: zero tolerance law
+gdl: graduated drivers license law
+bac10: blood alcohol limit .10
+bac08: blood alcohol limit .08
+perse: administrative license revocation (per se law)
+totfat: total traffic fatalities
+nghtfat: total nighttime fatalities
+wkndfat: total weekend fatalities
+totfatpvm: total fatalities per 100 million miles
+nghtfatpvm: nighttime fatalities per 100 million miles
+wkndfatpvm: weekend fatalities per 100 million miles
+statepop: state population
+totfatrte: total fatalities per 100,000 population
+nghtfatrte: nighttime fatalities per 100,000 population
+wkndfatrte: weekend accidents per 100,000 population
+vehicmiles: vehicle miles traveled, billions
+unem: unemployment rate, percent
+perc14_24: percent population aged 14 through 24
+sl70plus: sl70 + sl75 + slnone
+sbprim: =1 if primary seatbelt law
+sbsecon: =1 if secondary seatbelt law
+
+-----
+
 The dataset has 1200 observations of 56 variables. The response variables are traffic fatalities. The explanatory variables include the year dummies, traffic laws enforcement dummies and some geographic and economic factors. 
 
 The response variable we are interested in is the total fatality rate and the potential explanatory variables include the year dummies, the blood alcohol concentration (BAC) limits, the seatbelt laws, the speed limit of 70 and up, the *per se* law, the graduated drivers license law, the unemployment rate, the percent population aged 14 to 24 and the vehicle miles traveled per capita.
@@ -168,7 +204,103 @@ Virtually, for most states, the percent population aged 14 to 24 is positively c
 
 Clearly, within a year, *vehicmilespc* and *totfatrte* is positively correlated. On the other hand, the within states correlation seems to be negative for most states. Meanwhile, we observed the cross states regression slopes get decreased by year. It suggests that the positive effect of *vehicmilespc* on *totfatrte* shrinks over time. This may explain the negative within state correlation as there are other factors dereasing the fatality rate.
 
+```{r  fig.width=9, fig.height=5}
+df.traffic <- as.data.frame(f$data)
+rbind(head(df.traffic,5), tail(df.traffic, 5))
+
+# Create a restricted data set that doesn't include year dummies for analysis with reduced spam.
+df.traffic.restricted <- df.traffic %>%
+  select(!matches("d[0-9]{2}"))
+
+# This dumps too much for inclusion in knit
+#describe(df.traffic.restricted)
+
+df.traffic.means <- df.traffic.restricted %>%
+  group_by(year) %>%
+  summarise_at(vars(totfatrte, vehicmilespc, nghtfatrte, wkndfatrte), list(mean=mean)) 
+df.traffic.means
+  
+# Our ultimate question revolves around the relationship between traffic laws and total fotality rate
+#   so lets take a look at how the fatality rates have changed over time to get a feel for years where
+#   we might have had changes.
+
+# Fatality rate's by state
+ggplot(df.traffic) +
+  aes(as.factor(state), totfatrte) +
+  geom_boxplot() + geom_jitter(width = 0.2) + ggtitle('Fatality Rates by State')
+
+# Pooled fatality rate's by year
+ggplot(df.traffic) +
+  aes(as.factor(year), totfatrte) +
+  geom_boxplot() +
+    geom_jitter(width = 0.2) + ggtitle('Fatality Rates by Year') +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=totfatrte_mean, group=2), color='blue')
+
+ggplot(df.traffic) +
+  aes(as.factor(year), nghtfatrte) +
+  geom_boxplot() +
+    geom_jitter(width = 0.2) + ggtitle('Night Fatality Rates by Year') +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=nghtfatrte_mean, group=2), color='blue')
+
+ggplot(df.traffic) +
+  aes(as.factor(year), wkndfatrte) +
+  geom_boxplot() +
+    geom_jitter(width = 0.2) + ggtitle('Weekend Fatality Rates by Year') +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=wkndfatrte_mean, group=2), color='blue')
+
+ggplot(df.traffic) +
+  aes(as.factor(year), vehicmilespc) +
+  geom_boxplot() +
+    geom_jitter(width = 0.2) + ggtitle('Total Miles Driven - Per Capita') +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=vehicmilespc_mean, group=1), color='blue')
+```
+
+```{r fig.width=9, fig.height=5}
+# Take a look at overall correlations with specific laws. Since law variables are binary, we can think of their average as something 
+# like an adoption rate across states in a given year.
+df.traffic.law.means <- df.traffic.restricted %>%
+  group_by(year) %>%
+  mutate(perc14_24 = perc14_24 / 100) %>%
+  mutate(unem = unem / 100) %>%
+  summarise_at(vars(totfatrte,
+                    bac08, bac10, perse, sbprim, sbsecon, sl70plus, gdl), list(mean=mean)) 
+
+df.traffic.adoption <- as.data.frame(df.traffic.law.means)
+
+df.traffic.law.melt <- melt(df.traffic.adoption, id.vars=c('year', 'totfatrte_mean'))
+
+ggplot(df.traffic.law.melt) +
+  aes(value, totfatrte_mean, col=variable) +
+  geom_line() +
+  facet_wrap(~variable) + 
+  labs(title="Mean Total Fatality Rate as a Function of Law Adoption Percentage")
+
+corrmat <- cor(df.traffic.law.means)
+corrplot(corrmat, method='ellipse', type='upper')
+```
+
 2. (15%) How is the our dependent variable of interest *totfatrte* defined? What is the average of this variable in each of the years in the time period covered in this dataset? Estimate a linear regression model of *totfatrte* on a set of dummy variables for the years 1981 through 2004. What does this model explain? Describe what you find in this model. Did driving become safer over this period? Please provide a detailed explanation.
+
+```{r}
+# Average totfatrate by year
+df.traffic.means
+
+# Extract dummies
+df.traffic.dummies <- df.traffic %>%
+  filter(year > 1980 ) %>%
+  select(!matches('d80')) %>%
+  select(matches("totfatrte") | matches("d[0-9]{2}"))
+#df.traffic.dummies
+
+lm.yr.dummie.fit <- lm(df.traffic.dummies)
+#lm.yr.dummie.fit
+
+summary(lm.yr.dummie.fit)
+```
+
+This model estimates the linear intercept for the pooled fatality rates across states, with a different intercept for each year. Quite interestingly, we see the dummy variables for 1981-1990 are at least marginally significant, an observation that appears correlated with the leveling off of the mean fatality rate across states, observed in the `Fatality rates by year` graph generated in question (1).
+
+Given this model and the referenced graph from (1), it does appear that if we interpret a drop in totfatrte as 'driving becoming safer', then there does seem to be a general trend in that direction; additionally and without asserting any specific cause, it does appear that something(s) occurred in the 1981 to 1990 time frame that is strongly correlated with a decrease in fatality rates. Additionally, we can also observe from the `Total Miles Driven - Per Capita` graph, that the total miles being driven, per person, have gone up steadily over the same time period which, implicitly, would create more opportunities for fatal incidents to occur.
 
 3. (15%) Expand your model in *Exercise 2* by adding variables *bac08, bac10, perse, sbprim, sbsecon, sl70plus, gdl, perc14_24, unem, vehicmilespc*, and perhaps *transformations of some or all of these variables*. Please explain carefully your rationale, which should be based on your EDA, behind any transformation you made. If no transformation is made, explain why transformation is not needed. How are the variables *bac8* and *bac10* defined? Interpret the coefficients on *bac8* and *bac10*. Do *per se laws* have a negative effect on the fatality rate? What about having a primary seat belt law? (Note that if a law was enacted sometime within a year the fraction of the year is recorded in place of the zero-one indicator.)
 
@@ -239,6 +371,35 @@ The fixed effects model allows for arbitrary correlation between $a_i$ and $X_i$
 
 5. (10%) Would you perfer to use a random effects model instead of the fixed effects model you built in *Exercise 4*? Please explain.
 
+Lets start by estimating a random effects model for the same dataset.
+
+```{r}
+rnd_e <- plm(data = driving.panel, 
+          totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + d92 + d93 + 
+            d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + bac08 + bac10 + 
+            perse + sbprim + sbsecon + sl70plus + gdl + perc14_24 + unem + vehicmilespc, 
+          model = 'random')
+
+summary(rnd_e)
+```
+
+If we examine the predicted coeficients for our fixed effect model, compared with a random effects model, in a similar fashion to what was done in (4), we obtain the following:
+
+```{r}
+
+data.frame('Fixed.effects' = coefficients(fe)[c('bac08', 'bac10', 'perse', 'sbprim')],
+           'Random.effects' = coefficients(rnd_e)[c('bac08', 'bac10', 'perse', 'sbprim')])
+```
+
+This indicates that the overall predictions provided by the random effects model are in close agreement with the fixed effects model. Given that this is the case, if we want to decide which model is more appropriate, we should consider the assumptions associated with each model. A major downside to our random effects model is that we must we willing to make the very strong assumption that our unobserved errors are uncorrelated with any of our explanatory variables: an extremely dubious assumption in this case. Given that both our tests produce similar model coefficients, selecting the fixed effects model seems like the correct choice on the surface.
+
+A more structured approach, as suggested by Wooldridge, is to utilize the Hausman test for panel data, under which a rejection of the null hypothesis indicates that there is not sufficient evidence to believe that our unobserved effects are uncorrelated with our explanatory variables.
+
+```{r}
+phtest(fe, rnd_e)
+```
+The results of the Hausman test are quite stark, with an extremely small p-value, indicating that we should strongly prefer the fixed effects model.
+
 6. (10%) Suppose that *vehicmilespc*, the number of miles driven per capita, increases by $1,000$. Using the FE estimates, what is the estimated effect on *totfatrte*? Please interpret the estimate.
 
 ```{r}
@@ -248,6 +409,11 @@ Holding all other conditions constant, with the number of miles driven per catip
 
 7. (5%) If there is serial correlation or heteroskedasticity in the idiosyncratic errors of the model, what would be the consequences on the estimators and their standard errors?
 
+In terms of the fixed effect model, if we have serial correlation and/or heteroskedasticity in our idiosyncratic error, it generally means that we have failed to include some important time varying term, and in so doing we have violated the strictly exogenous assumption required for the model. In the case where these assumptions are violated, then standard errors and test statistics are likely invalid.
+
+Woolridge asserts (pg.421) that it is possible to correct for serial correlation and heteroskedacity when N >> T, and N >> 1; but, then goes on to indicate that such an approach is outside the scope of the current text, so we will assume for our situation that this is the case.
+
+In the simplifed case, where we have heteroskedacity in our idiosyncratic error without any serial correlation, we can utilize previously discussed techniques for generating robust standard errors to obtain appropriate statistics.
 
 
 
