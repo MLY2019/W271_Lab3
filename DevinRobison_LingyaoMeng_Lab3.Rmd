@@ -39,40 +39,7 @@ load("driving.RData", f <- new.env())
 driving <- f$data     
 str(driving)
 ```
-From Wooldridge's rdata description \
-(`https://rdrr.io/cran/wooldridge/man/driving.html`) \
-------
-
-sl55: speed limit == 55 \
-sl65: speed limit == 65 \
-sl70: speed limit == 70 \
-sl75: speed limit == 75 \
-slnone: no speed limit \
-seatbelt: =0 if none, =1 if primary, =2 if secondary \
-minage: minimum drinking age \
-zerotol: zero tolerance law \
-gdl: graduated drivers license law \
-bac10: blood alcohol limit .10 \
-bac08: blood alcohol limit .08 \
-perse: administrative license revocation (per se law) \
-totfat: total traffic fatalities \
-nghtfat: total nighttime fatalities \
-wkndfat: total weekend fatalities \
-totfatpvm: total fatalities per 100 million miles \
-nghtfatpvm: nighttime fatalities per 100 million miles \
-wkndfatpvm: weekend fatalities per 100 million miles \
-statepop: state population \
-totfatrte: total fatalities per 100,000 population \
-nghtfatrte: nighttime fatalities per 100,000 population \
-wkndfatrte: weekend accidents per 100,000 population \
-vehicmiles: vehicle miles traveled, billions \
-unem: unemployment rate, percent \
-perc14_24: percent population aged 14 through 24 \
-sl70plus: sl70 + sl75 + slnone \
-sbprim: =1 if primary seatbelt law \
-sbsecon: =1 if secondary seatbelt law \
-
------
+For a full variable description, see Wooldridge: `https://rdrr.io/cran/wooldridge/man/driving.html`
 
 The dataset has 1200 observations of 56 variables. The response variables are traffic fatalities. The explanatory variables include the year dummies, traffic laws enforcement dummies and some geographic and economic factors. 
 
@@ -92,9 +59,51 @@ ggplot(driving, aes(x = totfatrte)) +
 ```{r fig.width = 9, fig.height = 4.5, message = FALSE}
 ggplot(driving, aes(x = year, y = totfatrte, color = factor(state))) +
   geom_point() + geom_smooth(method=lm, se=FALSE)
-ggplot(driving, aes(factor(state), totfatrte)) +
-  geom_boxplot(aes(fill = factor(state)))
+#ggplot(driving, aes(factor(state), totfatrte)) +
+#  geom_boxplot(aes(fill = factor(state)))
+
+df.traffic <- as.data.frame(f$data)
+#rbind(head(df.traffic,5), tail(df.traffic, 5))
+
+# Create a restricted data set that doesn't include year dummies for analysis with reduced spam.
+df.traffic.restricted <- df.traffic %>%
+  select(!matches("d[0-9]{2}"))
+
+# This dumps too much for inclusion in knit
+#describe(df.traffic.restricted)
+
+df.traffic.means <- df.traffic.restricted %>%
+  group_by(year) %>%
+  summarise_at(vars(totfatrte, vehicmilespc, nghtfatrte, wkndfatrte), list(mean=mean)) 
+df.traffic.means
+  
+# Our ultimate question revolves around the relationship between traffic laws and total fotality rate
+#   so lets take a look at how the fatality rates have changed over time to get a feel for years where
+#   we might have had changes.
+
+# Fatality rate's by state
+ggplot(df.traffic) +
+  aes(as.factor(state), totfatrte) +
+  geom_boxplot() + geom_jitter(width = 0.2) + ggtitle('Fatality Rates by State')
+
+# Pooled fatality rate's by year
+ggplot(df.traffic) +
+  aes(as.factor(year), totfatrte) +
+  geom_boxplot() +
+    geom_jitter(width = 0.2) + ggtitle('Fatality Rates by Year') +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=totfatrte_mean, group=2, color='blue')) +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=nghtfatrte_mean, group=2, color='green')) +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=wkndfatrte_mean, group=2, color='red')) +
+  scale_colour_manual(name = 'Fatality Type', 
+         values =c('blue'='blue','green'='green', 'red'='red'), labels = c('Total', 'Night', 'Weekend'))
+
+ggplot(df.traffic) +
+  aes(as.factor(year), vehicmilespc) +
+  geom_boxplot() +
+    geom_jitter(width = 0.2) + ggtitle('Total Miles Driven - Per Capita') +
+  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=vehicmilespc_mean, group=1), color='blue')
 ```
+From the above graph `Fatality Rates by Year` in conjunction with `Total Miles Driver Per-Capita`, we can see that, without any assertion of causality, that overall fatality rates, as well as night and weekend fatality rates have steadily decreased over our time period of interest, while the number of miles driven per-capita has steadily increased. This provides substantial credibility to the hypothesis that driven has become safter, and should give us confidence in investigating potential causes.
 
 The distribution of the response variable *totfatrte* is slightly right skewed. Since the skewness is not very serious, we decided not to perform transformation on it. From the time plot grouped by state, we could see that for most states, the fatality rate trended to decrease from 1980 to 2004.  From the boxplot, we observed variated data variances across states.
 
@@ -205,57 +214,6 @@ Virtually, for most states, the percent population aged 14 to 24 is positively c
 
 Clearly, within a year, *vehicmilespc* and *totfatrte* is positively correlated. On the other hand, the within states correlation seems to be negative for most states. Meanwhile, we observed the cross states regression slopes get decreased by year. It suggests that the positive effect of *vehicmilespc* on *totfatrte* shrinks over time. This may explain the negative within state correlation as there are other factors dereasing the fatality rate.
 
-```{r  fig.width=9, fig.height=5}
-df.traffic <- as.data.frame(f$data)
-rbind(head(df.traffic,5), tail(df.traffic, 5))
-
-# Create a restricted data set that doesn't include year dummies for analysis with reduced spam.
-df.traffic.restricted <- df.traffic %>%
-  select(!matches("d[0-9]{2}"))
-
-# This dumps too much for inclusion in knit
-#describe(df.traffic.restricted)
-
-df.traffic.means <- df.traffic.restricted %>%
-  group_by(year) %>%
-  summarise_at(vars(totfatrte, vehicmilespc, nghtfatrte, wkndfatrte), list(mean=mean)) 
-df.traffic.means
-  
-# Our ultimate question revolves around the relationship between traffic laws and total fotality rate
-#   so lets take a look at how the fatality rates have changed over time to get a feel for years where
-#   we might have had changes.
-
-# Fatality rate's by state
-ggplot(df.traffic) +
-  aes(as.factor(state), totfatrte) +
-  geom_boxplot() + geom_jitter(width = 0.2) + ggtitle('Fatality Rates by State')
-
-# Pooled fatality rate's by year
-ggplot(df.traffic) +
-  aes(as.factor(year), totfatrte) +
-  geom_boxplot() +
-    geom_jitter(width = 0.2) + ggtitle('Fatality Rates by Year') +
-  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=totfatrte_mean, group=2), color='blue')
-
-ggplot(df.traffic) +
-  aes(as.factor(year), nghtfatrte) +
-  geom_boxplot() +
-    geom_jitter(width = 0.2) + ggtitle('Night Fatality Rates by Year') +
-  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=nghtfatrte_mean, group=2), color='blue')
-
-ggplot(df.traffic) +
-  aes(as.factor(year), wkndfatrte) +
-  geom_boxplot() +
-    geom_jitter(width = 0.2) + ggtitle('Weekend Fatality Rates by Year') +
-  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=wkndfatrte_mean, group=2), color='blue')
-
-ggplot(df.traffic) +
-  aes(as.factor(year), vehicmilespc) +
-  geom_boxplot() +
-    geom_jitter(width = 0.2) + ggtitle('Total Miles Driven - Per Capita') +
-  geom_smooth(data=df.traffic.means, aes(x=as.factor(year), y=vehicmilespc_mean, group=1), color='blue')
-```
-
 ```{r fig.width=9, fig.height=5}
 # Take a look at overall correlations with specific laws. Since law variables are binary, we can think of their average as something 
 # like an adoption rate across states in a given year.
@@ -264,7 +222,7 @@ df.traffic.law.means <- df.traffic.restricted %>%
   mutate(perc14_24 = perc14_24 / 100) %>%
   mutate(unem = unem / 100) %>%
   summarise_at(vars(totfatrte,
-                    bac08, bac10, perse, sbprim, sbsecon, sl70plus, gdl), list(mean=mean)) 
+                    bac08, perse, sbprim, sbsecon, sl70plus, gdl), list(mean=mean)) 
 
 df.traffic.adoption <- as.data.frame(df.traffic.law.means)
 
@@ -275,18 +233,25 @@ ggplot(df.traffic.law.melt) +
   geom_line() +
   facet_wrap(~variable) + 
   labs(title="Mean Total Fatality Rate as a Function of Law Adoption Percentage")
-
-corrmat <- cor(df.traffic.law.means)
-corrplot(corrmat, method='ellipse', type='upper')
+#corrmat <- cor(df.traffic.law.means)
+#corrplot(corrmat, method='ellipse', type='upper')
 ```
-Examining a correlation plot of our fatality rate mean along with the means of our law indicator variables, which act as a proxy for adoption rate across all 50 states, it appears as though there is negative correlation in a bi-variate sense for each of the indicated laws. 
+The above plot uses the mean of the binary indicator for a given law, provided by each state, as a proxy for the total adoption of the law across all states. For example, if no state has implemented the law in a given year, then the mean will be 0, if all states have adopted the law, it will be 1, otherwise it will be equal to $adoption\_rate(law) = \frac{1}{N} \cdot \sum_{i=1}^{N}{I[law_{i} == 1]}$, where I is the indicator function. If we plot total fatality rate as a function of law adoption rate, we might be able to observe something interesting.
 
+In fact, we do observe some interesting correlation's between our total fatality rate and our proxy for adoption rate, indicating that there is reason to believe that adoption of certain laws, such as the `perse` law, does improve driver safety.
 
 2. (15%) How is the our dependent variable of interest *totfatrte* defined? What is the average of this variable in each of the years in the time period covered in this dataset? Estimate a linear regression model of *totfatrte* on a set of dummy variables for the years 1981 through 2004. What does this model explain? Describe what you find in this model. Did driving become safer over this period? Please provide a detailed explanation.
 
+Total fatality rate is defined as the number of fatalities per 100,000 population.
+
+Year based means were constructed as `df.traffic.means` in our initial EDA, and can be reused below.
+
+Finally, to construct our simple linear regression, we'll extract all relevant columns as a new data frame `df.traffic.dummies`, and train our linear model. Note that passing a dataframe to `lm` produces a model where the first column is considered the dependant variable, and all subsquent columns are used as explanatory variables by the model.
+
 ```{r}
 # Average totfatrate by year
-df.traffic.means
+df.traffic.means[c('year', 'totfatrte_mean')] %>%
+  print(n=Inf)
 
 # Extract dummies
 df.traffic.dummies <- df.traffic %>%
