@@ -59,33 +59,33 @@ ggplot(driving) + aes(as.factor(year), vehicmilespc) + geom_boxplot() +
 From the above graph `Fatality Rates by Year` in conjunction with `Total Miles Driver Per-Capita`, we can see that, without any assertion of causality, that overall fatality rates, as well as night and weekend fatality rates have steadily decreased over our time period of interest, while the number of miles driven per-capita has steadily increased. This provides substantial credibility to the hypothesis that driven has become safter, and should give us confidence in investigating potential causes.
 
 ### Univariate analysis of the response variable
-```{r fig.width = 3, fig.height = 2, message = FALSE}
-ggplot(driving, aes(x = totfatrte)) +
-  geom_histogram(aes(y = ..density..), binwidth = 1, fill="#0072B2", colour="black")
+```{r fig.width = 12, fig.height = 3, message = FALSE}
+p1 <- ggplot(driving, aes(x = totfatrte)) +
+      geom_histogram(aes(y = ..density..), binwidth = 1, fill="#0072B2", colour="black")
+p2 <- ggplot(driving, aes(factor(state), totfatrte)) +
+      geom_boxplot(aes(fill = factor(state))) + ggtitle('Total fatality rate by state')
+ggarrange(p1, p2, ncol=2, nrow=1, widths=c(3, 9), legend="none")
 ```
-```{r fig.width = 12, fig.height = 4, message = FALSE}
-p1<-ggplot(driving, aes(x = year, y = totfatrte, color = factor(state))) +
+```{r fig.width = 9, fig.height = 4.5, message = FALSE}
+ggplot(driving, aes(x = year, y = totfatrte, color = factor(state))) +
   geom_point() + geom_smooth(method=lm, se=FALSE) + ggtitle('Total fatality rate by year')
-p2<-ggplot(driving, aes(factor(state), totfatrte)) +
-  geom_boxplot(aes(fill = factor(state))) + ggtitle('Total fatality rate by state')
-ggarrange(p1, p2, ncol=2, nrow=1, legend="none")
 ```
 
-The distribution of the response variable *totfatrte* is slightly right skewed. Since the skewness is not very serious, we decided not to perform transformation on it. From the time plot grouped by state, we could see that for most states, the fatality rate trended to decrease from 1980 to 2004. From the box plot, we observed variated data variances across states.
+The distribution of the response variable *totfatrte* is slightly right skewed. Since the skewness is not very serious, we decided not to perform transformation on it. From the box plot, we observed variated data variances across states. From the time plot grouped by state, we could see that for most states, the fatality rate trended to decrease from 1980 to 2004. 
 
 ### Univariate analysis of the explanatory variables
 ```{r fig.width = 9, fig.height = 2, message = FALSE}
 hist.unem <- ggplot(driving, aes(x = unem)) +
              geom_histogram(aes(y = ..density..), binwidth = 0.5, fill="#0072B2", colour="black")
-perc.unem <- ggplot(driving, aes(x = perc14_24)) +
+hist.perc <- ggplot(driving, aes(x = perc14_24)) +
              geom_histogram(aes(y = ..density..), binwidth = 0.5, fill="#0072B2", colour="black")
-vmpc.unem <- ggplot(driving, aes(x = vehicmilespc)) +
+hist.vmpc <- ggplot(driving, aes(x = vehicmilespc)) +
              geom_histogram(aes(y = ..density..), binwidth = 500, fill="#0072B2", colour="black")
-ggarrange(hist.unem, perc.unem, vmpc.unem, ncol=3, nrow=1)
+ggarrange(hist.unem, hist.perc, hist.vmpc, ncol=3, nrow=1)
 ```
 
 The distributions of unemployment rate, percent population aged 14 to 24 and vehicle miles driven per capita are all right-skewed. The skewness of *perc14_24* is more severe.
-```{r fig.width = 12, fig.height = 15, message = FALSE}
+```{r fig.width = 12, fig.height = 12, message = FALSE}
 uni.bac08 <- qplot(x = year, y = bac08, data = driving, color = factor(state)) + 
   geom_smooth(method=lm, se=FALSE)
 uni.bac10 <- qplot(x = year, y = bac10, data = driving, color = factor(state)) +
@@ -107,7 +107,7 @@ uni.perc14_24 <- qplot(x = year, y = perc14_24, data = driving, color = factor(s
 uni.vehicmilespc <- qplot(x = year, y = vehicmilespc, data = driving, color = factor(state)) +
   geom_smooth(method=lm, se=FALSE)
 ggarrange(uni.bac08, uni.bac10, uni.sbprim, uni.sbsecon, uni.perse, uni.sl70plus, uni.gdl, uni.unem, 
-          uni.perc14_24, uni.vehicmilespc, ncol=2, nrow=5, common.legend = TRUE, legend="bottom")
+          uni.perc14_24, uni.vehicmilespc, ncol=3, nrow=4, common.legend = TRUE, legend="bottom")
 ```
 
 From the time plots, we see the enforcement of BAC limit of 0.08% increased by time, for quite a few states. In fact, over 75% of the observations valued 0 in *bac08*. On the other hand, comparable increasing and decreasing trends were observed on the enforcement of BAC limit of 0.10%, indicating that the enforcement of two limits may not be mutually exclusive. Both variables need to be kept in the model.
@@ -136,7 +136,7 @@ The above plot uses the mean of the binary indicator for a given law, provided b
 In fact, we do observe some interesting correlation's between our total fatality rate and our proxy for adoption rate, indicating that there is reason to believe that adoption of certain laws, such as the `perse` law, does improve driver safety.
 
 ### Bivariate analysis by state
-```{r fig.width = 12, fig.height = 15, message = FALSE}
+```{r fig.width = 12, fig.height = 12, message = FALSE}
 bi.bac08.state <- qplot(x = bac08, y = totfatrte, data = driving, color = factor(state)) + 
   geom_smooth(method=lm, se=FALSE)
 bi.bac10.state <- qplot(x = bac10, y = totfatrte, data = driving, color = factor(state)) +
@@ -159,7 +159,7 @@ bi.vehicmilespc.state <- qplot(x = vehicmilespc, y = totfatrte, data = driving, 
   geom_smooth(method=lm, se=FALSE)
 ggarrange(bi.bac08.state, bi.bac10.state, bi.sbprim.state, bi.sbsecon.state, bi.perse.state, 
           bi.sl70plus.state, bi.gdl.state, bi.unem.state, bi.perc14_24.state, bi.vehicmilespc.state, 
-          ncol=2, nrow=5, common.legend = TRUE, legend="bottom")
+          ncol=3, nrow=4, common.legend = TRUE, legend="bottom")
 ```
 
 Within states, some negative correlation was observed between *bac08* and *totfatrte*. This suggests that for a given state, the enforcement of BAC limit of 0.08% would probably decrease the fatality rate. On the other hand, the correlation between *bac10* and *totfatrte* is not very clear. Negative correlations were observed between both the primary and the secondary seatbelt law and the fatality rate. The enforcement of the "Per se" laws was negatively correlated with the fatality rate for most states, with few exceptions. Negative effects were also observed on high speed limit (70 and up) and the enforcement of graduated drivers license law.
@@ -167,7 +167,7 @@ Within states, some negative correlation was observed between *bac08* and *totfa
 Virtually, for most states, the unemployment rate is positively correlated with the fatality rate with variated slopes among states. Similar effect was observed on the percent population aged 14 to 24. For vehicle miles driven per capita, the within states correlation seems to be negative for most states.
 
 ### Bivariate analysis by the year
-```{r fig.width = 12, fig.height = 15, message = FALSE}
+```{r fig.width = 12, fig.height = 10, message = FALSE}
 bi.bac08.year <- qplot(x = bac08, y = totfatrte, data = driving, color = factor(year)) + 
   geom_smooth(method=lm, se=FALSE)
 bi.bac10.year <- qplot(x = bac10, y = totfatrte, data = driving, color = factor(year)) +
@@ -190,7 +190,7 @@ bi.vehicmilespc.year <- qplot(x = vehicmilespc, y = totfatrte, data = driving, c
   geom_smooth(method=lm, se=FALSE)
 ggarrange(bi.bac08.year, bi.bac10.year, bi.sbprim.year, bi.sbsecon.year, bi.perse.year, 
           bi.sl70plus.year, bi.gdl.year, bi.unem.year, bi.perc14_24.year, bi.vehicmilespc.year, 
-          ncol=2, nrow=5, common.legend = TRUE, legend="bottom")
+          ncol=3, nrow=4, common.legend = TRUE, legend="bottom")
 ```
 
 Within a year, the correlation between *bac08* and *totfatrte* is not very obvious. On the other hand, some negative correlation was observed between *bac10* and *totfatrte*. The within years correlation between *sbprim* and *totfatrte* is also negative but that between *sbsecon* and *totfatrte* is mixed. Interestingly, some weakly positive effect was observed from *perse* while the positive effect was more obvious from *sl70plus*. This indicates that the effects of the enforcement of the "per se" law and high speed limit are complicated. Negative effect was observed from *gdl*. 
